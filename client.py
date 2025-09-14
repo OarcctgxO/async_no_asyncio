@@ -4,6 +4,7 @@ import prompt_toolkit
 
 
 def receiver(server_sock: socket.socket):
+    """Бесконечно принимает сообщения от сервера, пока подключение не будет разорвано."""
     try:
         while True:
             msg = server_sock.recv(1024).decode()
@@ -13,6 +14,7 @@ def receiver(server_sock: socket.socket):
 
 
 def client(ipv4: str, port: int):
+    """Подключается к серверу по введеному адресу и возвращает сокет сервера."""
     server = socket.socket()
     try:
         server.connect((ipv4, port))
@@ -24,6 +26,10 @@ def client(ipv4: str, port: int):
         return server
     
 def inputer(server_sock):
+    """
+    Бесконечный ввод и отправка сообщений.
+    Можно ввести exit для отключения от сервера и завершения работы.
+    """
     session = prompt_toolkit.PromptSession()
     while True:
         try:
@@ -40,6 +46,7 @@ def inputer(server_sock):
     
 
 def is_valid_ipv4(ipv4:str) -> bool:
+    """Простая проверка введеного адреса."""
     if ipv4 == "localhost":
         return True
     parts = ipv4.split('.')
@@ -64,6 +71,7 @@ if __name__ == "__main__":
     
     try:
         server = client(ipv4, 5555)
+        #Запускаю демонический поток ввода сообщения, чтобы ввод заканчивался при отключении от сервера
         threading.Thread(target=inputer, args=(server,), daemon=True).start()
         receiver(server)
     except Exception as err:
