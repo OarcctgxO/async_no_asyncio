@@ -8,6 +8,10 @@ def receiver(server_sock: socket.socket):
     try:
         while True:
             msg = server_sock.recv(1024).decode()
+            msg.strip()
+            if not msg:
+                prompt_toolkit.print_formatted_text('Сервер разорвал соединение')
+                return
             prompt_toolkit.print_formatted_text(msg)
     except Exception as er:
         print('Receiver:', repr(er))
