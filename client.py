@@ -4,20 +4,6 @@ import prompt_toolkit
 import select
 
 
-def receiver(server_sock: socket.socket):
-    """Бесконечно принимает сообщения от сервера, пока подключение не будет разорвано."""
-    try:
-        while True:
-            msg = server_sock.recv(1024).decode()
-            msg = msg.strip()
-            if not msg:
-                prompt_toolkit.print_formatted_text('Сервер разорвал соединение')
-                return
-            prompt_toolkit.print_formatted_text(msg)
-    except Exception as er:
-        print('Receiver:', repr(er))
-
-
 def client(ipv4: str, port: int):
     """Подключается к серверу по введеному адресу и возвращает сокет сервера."""
     server = socket.socket()
@@ -29,8 +15,20 @@ def client(ipv4: str, port: int):
         print("Connection:", repr(er))
         server.close()
         return server
+
+def receiver(server_sock: socket.socket):
+    """Бесконечно принимает сообщения от сервера, пока подключение не будет разорвано."""
+    try:
+        while True:
+            msg = server_sock.recv(1024).decode()
+            msg = msg.strip()
+            if not msg:
+                raise ConnectionAbortedError('Разрыв соединения')
+            prompt_toolkit.print_formatted_text(msg)
+    except Exception as er:
+        print('Receiver:', repr(er))
     
-def inputer(server_sock):
+def inputer(server_sock: socket.socket):
     """
     Бесконечный ввод и отправка сообщений.
     Можно ввести exit для отключения от сервера и завершения работы.
@@ -40,9 +38,9 @@ def inputer(server_sock):
         try:
             msg = session.prompt('> ')
             if msg.lower() == 'exit':
+                server_sock.shutdown(socket.SHUT_RDWR)
                 server_sock.close()
-                print('Вы отключились с сервера')
-                break
+                raise Exception('Ручное отключение без ошибок.')
             server_sock.send(msg.encode())
         except Exception as er:
             print(repr(er))

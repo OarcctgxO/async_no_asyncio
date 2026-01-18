@@ -11,6 +11,7 @@ def now() -> str:
 class UnusualAsyncServer:
     def __init__(self, ipv4:str, port: int):
         self.server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server_sock.bind((ipv4, port))
         self.server_sock.listen()
         
