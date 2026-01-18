@@ -1,6 +1,7 @@
 import threading
 import socket
 import prompt_toolkit
+import select
 
 
 def receiver(server_sock: socket.socket):
@@ -8,7 +9,7 @@ def receiver(server_sock: socket.socket):
     try:
         while True:
             msg = server_sock.recv(1024).decode()
-            msg.strip()
+            msg = msg.strip()
             if not msg:
                 prompt_toolkit.print_formatted_text('Сервер разорвал соединение')
                 return
@@ -49,32 +50,25 @@ def inputer(server_sock):
             break
     
 
-def is_valid_ipv4(ipv4:str) -> bool:
-    """Простая проверка введеного адреса."""
-    if ipv4 == "localhost":
-        return True
-    parts = ipv4.split('.')
-    if len(parts) != 4:
-        return False
-    for part in parts:
-        if not part.isdigit():
-            return False
-        num = int(part)
-        if num < 0 or num > 255:
-            return False
-    return True
-
-
 if __name__ == "__main__":
-    while True:
-        ipv4 = input("Введите ipv4 адрес сервера: \n")
-        if is_valid_ipv4(ipv4):
-            break
-        else:
-            print("Неверный формат!")
-    
     try:
-        server = client(ipv4, 5555)
+        udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        udp_sock.bind(('0.0.0.0', 0))
+        for i in range(3):
+            udp_sock.sendto(b"who's the server?", ('255.255.255.255', 5555))
+            r, _, _ = select.select([udp_sock], [], [], 1)
+            if r:
+                msg, addr = udp_sock.recvfrom(1024)
+                if msg == b'Hello, I am the server.':
+                    ipv4 = addr
+                    break
+            if i == 2:
+                raise ConnectionError('Сервер не найден.')
+            else:
+                continue
+                
+        server = client(*ipv4)
         #Запускаю демонический поток ввода сообщения, чтобы ввод заканчивался при отключении от сервера
         threading.Thread(target=inputer, args=(server,), daemon=True).start()
         receiver(server)

@@ -1,0 +1,1 @@
+python -m PyInstaller --onefile --hidden-import prompt_toolkit client.py
