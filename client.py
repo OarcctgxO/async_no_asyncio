@@ -21,7 +21,7 @@ def receiver(server_sock: socket.socket):
     """Бесконечно принимает сообщения от сервера, пока подключение не будет разорвано."""
     try:
         while True:
-            msg = server_sock.recv(1024).decode()
+            msg = server_sock.recv(1024).decode('utf-8', errors='ignore')
             msg = msg.strip()
             if not msg:
                 raise ConnectionAbortedError('Разрыв соединения')

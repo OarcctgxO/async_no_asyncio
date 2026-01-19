@@ -5,7 +5,7 @@ from datetime import datetime
 import sys
 import atexit
 
-class Tee:
+class LoggingOutput:
     def __init__(self, *files):
         self.files = files
     def write(self, obj):
@@ -19,8 +19,8 @@ class Tee:
 log_file = open('output.log', 'w')
 atexit.register(log_file.close)
 
-sys.stdout = Tee(sys.stdout, log_file)
-sys.stderr = Tee(sys.stderr, log_file)
+sys.stdout = LoggingOutput(sys.stdout, log_file)
+sys.stderr = LoggingOutput(sys.stderr, log_file)
 
 def now() -> str:
     """Текущее время, формат чч:мм:сс"""
@@ -48,7 +48,7 @@ class UnusualAsyncServer:
         self.ready_to_read = []
         self.ready_to_write = []
         
-        print("Сервер создан.")
+        print(f"{now()} - Сервер создан.")
         
     def server_reader(self):
         """
@@ -166,7 +166,7 @@ class UnusualAsyncServer:
             try:
                 try:
                     nick = self.clients[sock]['n']
-                    self.msg_queue.append((f"{nick} --- отключение", sock))
+                    self.msg_queue.append((f"{now()} - {nick} --- отключение", sock))
                 finally:
                     del self.clients[sock]
             except Exception:
@@ -201,7 +201,7 @@ class UnusualAsyncServer:
         
     def loop(self):
         """Главный цикл сервера. Запускает генераторы готовых к работе сокетов, запускает messenger и selector."""
-        print("Сервер запущен")
+        print(f"{now()} - Сервер запущен")
         while True:
             if self.ready_to_read:
                 for sock in self.ready_to_read:
