@@ -2,7 +2,25 @@ import socket
 from select import select
 from collections import deque
 from datetime import datetime
+import sys
+import atexit
 
+class Tee:
+    def __init__(self, *files):
+        self.files = files
+    def write(self, obj):
+        for f in self.files:
+            f.write(obj)
+            f.flush()
+    def flush(self):
+        for f in self.files:
+            f.flush()
+
+log_file = open('output.log', 'w')
+atexit.register(log_file.close)
+
+sys.stdout = Tee(sys.stdout, log_file)
+sys.stderr = Tee(sys.stderr, log_file)
 
 def now() -> str:
     """Текущее время, формат чч:мм:сс"""
