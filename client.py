@@ -2,6 +2,7 @@ import threading
 import socket
 import prompt_toolkit
 import select
+import sys
 
 
 def client(ipv4: str, port: int):
@@ -54,21 +55,25 @@ if __name__ == "__main__":
         udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         udp_sock.bind(('0.0.0.0', 0))
         for i in range(3):
+            print(f'Отправляю пакет поиска #{i+1}')
             udp_sock.sendto(b"who's the server?", ('255.255.255.255', 5555))
-            r, _, _ = select.select([udp_sock], [], [], 1)
+            print('Жду ответа...')
+            r, _, _ = select.select([udp_sock], [], [], 2)
             if r:
                 msg, addr = udp_sock.recvfrom(1024)
                 if msg == b'Hello, I am the server.':
                     ipv4 = addr
+                    print('Получен ответ от сервера, подключение...')
                     break
             if i == 2:
                 raise ConnectionError('Сервер не найден.')
             else:
+                print('Нет ответа, повторяю запрос...')
                 continue
                 
         server = client(*ipv4)
-        #Запускаю демонический поток ввода сообщения, чтобы ввод заканчивался при отключении от сервера
         threading.Thread(target=inputer, args=(server,), daemon=True).start()
         receiver(server)
     except Exception as err:
         print(repr(err))
+        sys.exit(0)

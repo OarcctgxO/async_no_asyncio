@@ -46,7 +46,7 @@ class UnusualAsyncServer:
                     client_sock, client_addr = self.server_sock.accept()
                 except Exception:
                     continue
-                msg = f"({client_addr[0]}:{client_addr[1]}) --- новое подключение, после выбора ника добавится в чат."
+                msg = f"{now()} - ({client_addr[0]}:{client_addr[1]}) --- новое подключение, после выбора ника добавится в чат."
                 self.msg_queue.append((msg, client_sock))
                 
                 reader, writer, queue = self.client_reader(client_sock), self.client_writer(client_sock), deque()
@@ -90,7 +90,7 @@ class UnusualAsyncServer:
             next(self.clients[sock]['r'])
             nick, _ = self.msg_queue.pop()
             self.clients[sock]['n'] = nick
-            msg = f"({self.clients[sock]['a'][0]}:{self.clients[sock]['a'][1]}) --- добавлен в чат с ником: {nick}"
+            msg = f"{now()} - ({self.clients[sock]['a'][0]}:{self.clients[sock]['a'][1]}) --- добавлен в чат с ником: {nick}"
             self.msg_queue.append((msg, sock))
             self.clients[sock]['q'].append(msg)
             yield
@@ -107,7 +107,7 @@ class UnusualAsyncServer:
         try:
             while True:
                 yield
-                raw_msg = sock.recv(1024).decode()
+                raw_msg = sock.recv(1024).decode('utf-8', errors='ignore')
                 if not raw_msg:
                     return
                 if self.clients[sock]['n']:
