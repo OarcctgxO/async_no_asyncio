@@ -11,7 +11,6 @@ class LoggingOutput:
     def write(self, obj):
         for f in self.files:
             f.write(obj)
-            f.flush()
     def flush(self):
         for f in self.files:
             f.flush()
@@ -27,6 +26,12 @@ def now() -> str:
     return datetime.now().strftime('%H:%M:%S')
 
 class UnusualAsyncServer:
+    """
+    Асинхронный сервер консольного чата (локальная сеть).
+    Намеренно не использует asyncio, threading и multiprocessing.
+    Работает на блокирующих сокетах, генераторах и системном вызове select.
+    Слушает UDP-broadcast и отвечает, чтобы передать адрес для TCP подключения.
+    """
     def __init__(self, ipv4:str, port: int):
         self.server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -34,6 +39,9 @@ class UnusualAsyncServer:
         self.server_sock.listen()
         
         self.udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        self.udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.udp_sock.setblocking(False)
         self.udp_sock.bind((ipv4, port))
         self.udp_queue = deque()
         self.udp_gen = self.udp_echo()
@@ -91,7 +99,7 @@ class UnusualAsyncServer:
         while True:
             yield
             msg_rcv, addr = self.udp_sock.recvfrom(1024)
-            if msg_rcv == b"who's the server?":
+            if b"who's the server?" == msg_rcv:
                 msg = 'Hello, I am the server.'
                 self.udp_queue.append((msg, addr))
     
@@ -123,9 +131,15 @@ class UnusualAsyncServer:
         Обращаться (то есть next) только если сокет клиента готов к чтению.
         """
         try:
+            cache = []
             while True:
                 yield
-                raw_msg = sock.recv(1024).decode('utf-8', errors='ignore')
+                if not cache:
+                    raw_msg = sock.recv(1024).decode('utf-8', errors='ignore')
+                    if '\n' in raw_msg:
+                        cache = raw_msg.split('\n')
+                        cache = [m for m in cache if m]
+                raw_msg = cache.pop(0)
                 if not raw_msg:
                     return
                 if self.clients[sock]['n']:
@@ -159,18 +173,25 @@ class UnusualAsyncServer:
     def client_disconnect_handler(self, sock: socket.socket):
         """Безопасное отключение клиента."""
         try:
-            sock.close()
-        except socket.error:
-            pass
+            if sock in self.clients:
+                nick = self.clients[sock].get('n', '')
+                if nick:
+                    self.msg_queue.append((f"{now()} - {nick} --- отключение", sock))
+                if 'r' in self.clients[sock]:
+                    self.clients[sock]['r'].close()
+                if 'w' in self.clients[sock]:
+                    self.clients[sock]['w'].close()
+                if 'h' in self.clients[sock]:
+                    self.clients[sock]['h'].close()
+        except Exception as e:
+            print(f"Ошибка при отключении: {e}")
         finally:
             try:
-                try:
-                    nick = self.clients[sock]['n']
-                    self.msg_queue.append((f"{now()} - {nick} --- отключение", sock))
-                finally:
-                    del self.clients[sock]
-            except Exception:
+                sock.close()
+            except:
                 pass
+            if sock in self.clients:
+                del self.clients[sock]
                 
     def messenger(self):
         """
@@ -178,7 +199,7 @@ class UnusualAsyncServer:
         Не отправляет сообщение отправителю этого сообщения.
         """
         while self.msg_queue:
-            msg, ignore_sock = self.msg_queue.pop()
+            msg, ignore_sock = self.msg_queue.popleft()
             for sock in self.clients.keys():
                 if sock != ignore_sock and self.clients[sock]['n']:
                     self.clients[sock]['q'].append(msg)
@@ -197,12 +218,17 @@ class UnusualAsyncServer:
         if self.udp_queue:
             to_write.append(self.udp_sock)
         
-        self.ready_to_read, self.ready_to_write, _ = select(all_socks_read, to_write, [])
+        self.ready_to_read, self.ready_to_write, _ = select(all_socks_read, to_write, [], 0.2)
+        print(end='', flush=True)
         
     def loop(self):
         """Главный цикл сервера. Запускает генераторы готовых к работе сокетов, запускает messenger и selector."""
         print(f"{now()} - Сервер запущен")
         while True:
+            self.selector()
+
+            self.messenger()
+
             if self.ready_to_read:
                 for sock in self.ready_to_read:
                     if sock != self.server_sock:
@@ -223,18 +249,16 @@ class UnusualAsyncServer:
             if self.ready_to_write:
                 for sock in self.ready_to_write:
                     if sock is self.udp_sock:
-                        udp_msg, udp_addr = self.udp_queue.pop()
+                        udp_msg, udp_addr = self.udp_queue.popleft()
                         self.udp_sock.sendto(udp_msg.encode(), udp_addr)
-                    elif self.clients[sock]['q']:
+                        print(f"{now()} - logger --- отправлен UDP-ответ на {udp_addr}")
+                    elif sock in self.clients and self.clients[sock]['q']:
                         msg = self.clients[sock]['q'].pop()
                         try:
                             self.clients[sock]['w'].send(msg)
                         except StopIteration:
                             self.client_disconnect_handler(sock)
             self.ready_to_write = []
-        
-            self.messenger()
-            self.selector()
 
 
 if __name__ == "__main__":

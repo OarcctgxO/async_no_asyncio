@@ -10,7 +10,6 @@ def client(ipv4: str, port: int):
     server = socket.socket()
     try:
         server.connect((ipv4, port))
-        print('Успешное подключение! Можно писать сообщение.')
         return server
     except Exception as er:
         print("Connection:", repr(er))
@@ -42,18 +41,17 @@ def inputer(server_sock: socket.socket):
                 server_sock.shutdown(socket.SHUT_RDWR)
                 server_sock.close()
                 raise Exception('Ручное отключение без ошибок.')
-            server_sock.send(msg.encode())
+            server_sock.send(f"{msg}\n".encode())
         except Exception as er:
             print(repr(er))
             server_sock.close()
             break
     
 
-if __name__ == "__main__":
+def main():
     try:
         udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        udp_sock.bind(('0.0.0.0', 0))
         for i in range(3):
             print(f'Отправляю пакет поиска #{i+1}')
             udp_sock.sendto(b"who's the server?", ('255.255.255.255', 5555))
@@ -70,10 +68,14 @@ if __name__ == "__main__":
             else:
                 print('Нет ответа, повторяю запрос...')
                 continue
-                
+        udp_sock.close()
         server = client(*ipv4)
         threading.Thread(target=inputer, args=(server,), daemon=True).start()
         receiver(server)
     except Exception as err:
         print(repr(err))
         sys.exit(0)
+
+
+if __name__ == '__main__':
+    main()
