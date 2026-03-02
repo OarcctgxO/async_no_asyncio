@@ -18,15 +18,12 @@ async def reader_drainer(reader: asyncio.StreamReader):
 
 async def udp_requester(loop: asyncio.AbstractEventLoop, udp_sock: socket.socket):
     try:
-        send_coro = loop.sock_sendto(udp_sock, udp_request, broadcast_addr)
-        get_coro = loop.sock_recvfrom(udp_sock, 64)
-
         async with asyncio.timeout(5):
             while True:
-                await send_coro
+                await loop.sock_sendto(udp_sock, udp_request, broadcast_addr)
                 wait_task = asyncio.create_task(asyncio.sleep(1))
                 while True:
-                    get_task = asyncio.create_task(get_coro)
+                    get_task = asyncio.create_task(loop.sock_recvfrom(udp_sock, 64))
                     done, _ = await asyncio.wait([get_task, wait_task], return_when="FIRST_COMPLETED")
                     if not get_task in done:
                         get_task.cancel()
